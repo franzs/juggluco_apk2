@@ -1,7 +1,9 @@
-name: Download and Release APK
+name: Daily APK Download and Release
 
 on:
-  workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * *'  # Runs daily at 3:00 UTC
+  workflow_dispatch:     # Still allows manual runs
 
 permissions:
   contents: write
@@ -31,7 +33,7 @@ jobs:
         run: |
           ./scripts/download_juggluco.py
 
-      - name: Get version from APK filename
+      - name: Extract version from filename
         id: get_version
         run: |
           FILE=$(ls downloads/*.apk | head -n 1)
@@ -39,13 +41,28 @@ jobs:
 
           FILENAME=$(basename "$FILE")
           VERSION=$(echo "$FILENAME" | grep -oP '\d+-\d+-\d+' | sed 's/-/./g')
-          echo "VERSION_TAG=v$VERSION"
-          echo "version_tag=v$VERSION" >> $GITHUB_OUTPUT
+          VERSION_TAG="v$VERSION"
+          echo "version_tag=$VERSION_TAG" >> $GITHUB_OUTPUT
+          echo "VERSION_TAG=$VERSION_TAG" >> $GITHUB_ENV
+
+      - name: Check if release already exists
+        id: check_release
+        run: |
+          EXISTS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ steps.get_version.outputs.version_tag }})
+          if [ "$EXISTS" == "200" ]; then
+            echo "Release already exists. Skipping."
+            echo "SKIP_RELEASE=true" >> $GITHUB_ENV
+          else
+            echo "SKIP_RELEASE=false" >> $GITHUB_ENV
+          fi
 
       - name: Create GitHub Release
+        if: env.SKIP_RELEASE == 'false'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.get_version.outputs.version_tag }}
+          tag_name: ${{ env.VERSION_TAG }}
           files: ${{ env.APK_FILE }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
