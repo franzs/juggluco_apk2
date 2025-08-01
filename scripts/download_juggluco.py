@@ -32,13 +32,6 @@ try:
     print("Opening versions page...")
     driver.get("https://juggluco.en.uptodown.com/android/versions")
 
-    # Wait for the cookie dialog’s “Accept all” button and click it
-    accept = wait.until(EC.element_to_be_clickable((By.ID, "cookiescript_accept")))
-    print("Accepting cookies...")
-    accept.click()
-
-    time.sleep(3)
-
     # Wait for versions list
     print("Looking for a '-phone-' version...")
     version_list = wait.until(EC.presence_of_element_located((By.ID, "versions-items-list")))
