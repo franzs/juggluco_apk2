@@ -1,0 +1,48 @@
+name: Download and Release APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  download_and_release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install selenium
+
+      - name: Install Chrome and Chromedriver
+        uses: browser-actions/setup-chrome@v1
+
+      - name: Run Python script to download APK
+        run: |
+          ./scripts/download_juggluco.py
+
+      - name: Get version from APK filename
+        id: get_version
+        run: |
+          FILE=$(ls downloads/*.apk | head -n 1)
+          echo "APK_FILE=$FILE" >> $GITHUB_ENV
+
+          FILENAME=$(basename "$FILE")
+          VERSION=$(echo "$FILENAME" | grep -oP '\d+-\d+-\d+' | sed 's/-/./g')
+          echo "VERSION_TAG=v$VERSION"
+          echo "version_tag=v$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.get_version.outputs.version_tag }}
+          files: ${{ env.APK_FILE }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
