@@ -48,7 +48,7 @@ jobs:
         run: |
           EXISTS=$(curl -s -o /dev/null -w "%{http_code}" \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            https://api.github.com/repos/${{ github.repository }}/releases/tags/${env.VERSION_TAG})
+            https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ env.VERSION_TAG }})
           if [ "$EXISTS" == "200" ]; then
             echo "Release already exists. Skipping."
             echo "SKIP_RELEASE=true" >> $GITHUB_ENV
@@ -65,7 +65,7 @@ jobs:
 
           curl --location --output "${changelog}" "${changelog_url}"
 
-          ./scripts/parse_changelog.py "${changelog}" "${env.VERSION}" >"${changes_file}"
+          ./scripts/parse_changelog.py "${changelog}" "${{ env.VERSION }}" >"${changes_file}"
 
           echo "changes_file=${changes_file}" >>"${GITHUB_ENV}"
 
