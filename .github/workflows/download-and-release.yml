@@ -24,7 +24,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install selenium
+          pip install -r scripts/requirements.txt
 
       - name: Install Chrome and Chromedriver
         uses: browser-actions/setup-chrome@v1
@@ -34,23 +34,21 @@ jobs:
           ./scripts/download_juggluco.py
 
       - name: Extract version from filename
-        id: get_version
         run: |
           FILE=$(ls downloads/*.apk | head -n 1)
           echo "APK_FILE=$FILE" >> $GITHUB_ENV
 
           FILENAME=$(basename "$FILE")
           VERSION=$(echo "$FILENAME" | grep -oP '\d+-\d+-\d+' | sed 's/-/./g')
-          VERSION_TAG="v$VERSION"
-          echo "version_tag=$VERSION_TAG" >> $GITHUB_OUTPUT
-          echo "VERSION_TAG=$VERSION_TAG" >> $GITHUB_ENV
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "VERSION_TAG=v$VERSION" >> $GITHUB_ENV
 
       - name: Check if release already exists
         id: check_release
         run: |
           EXISTS=$(curl -s -o /dev/null -w "%{http_code}" \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ steps.get_version.outputs.version_tag }})
+            https://api.github.com/repos/${{ github.repository }}/releases/tags/${env.VERSION_TAG})
           if [ "$EXISTS" == "200" ]; then
             echo "Release already exists. Skipping."
             echo "SKIP_RELEASE=true" >> $GITHUB_ENV
@@ -58,11 +56,25 @@ jobs:
             echo "SKIP_RELEASE=false" >> $GITHUB_ENV
           fi
 
+      - name: Get changes
+        if: env.SKIP_RELEASE == 'false'
+        run: |
+          changelog="changes.html"
+          changelog_url="https://www.juggluco.nl/Juggluco/${changelog}"
+          changes_file="changes.md"
+
+          curl --location --output "${changelog}" "${changelog_url}"
+
+          ./scripts/parse_changelog.py "${changelog}" "${env.VERSION}" >"${changes_file}"
+
+          echo "changes_file=${changes_file}" >>"${GITHUB_ENV}"
+
       - name: Create GitHub Release
         if: env.SKIP_RELEASE == 'false'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.VERSION_TAG }}
+          body_path: ${{ env.changes_file }}
           files: ${{ env.APK_FILE }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
